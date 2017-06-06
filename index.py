@@ -19,6 +19,7 @@ sim_time = 60.0
 
 vocab = spa.Vocabulary(dim)
 vocab.add('POS', SemanticPointer(dim).unitary())
+print np.linalg.norm(vocab['POS'].v)
 
 def clock(t):
     if (t % isi) < isi/2.0:
@@ -73,7 +74,7 @@ def normalized_dot(x, y):
     return np.dot(x, y)
 
 def plot_similarity(similarity, title='Similarity'):
-    ymin, ymax = -1.2, 1.2
+    ymin, ymax = -0.2, 1.5
     plt.figure()
     plt.ylim(ymin, ymax)
     plt.grid(True)
@@ -87,8 +88,14 @@ def plot_similarity(similarity, title='Similarity'):
 def plot_pointers(data, vocab, title='Similarity'):
     plot_similarity(spa.similarity(data, vocab), title)
 
+def plot_vector_length(data, title='Length'):
+    data = np.asarray([np.linalg.norm(x) for x in data])
+    plot_similarity(data, title)
+
 def plot_index_sim(cur, next):
     data = np.asarray([normalized_dot(cur[i], next[i]) for i in range(0, len(cur))])
     plot_similarity(data)
 
 plot_index_sim(cur_data, next_data)
+plot_vector_length(cur_data, 'cl')
+plot_vector_length(next_data, 'nl')
