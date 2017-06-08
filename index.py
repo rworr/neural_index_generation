@@ -6,20 +6,21 @@ from nengo_spa.pointer import SemanticPointer
 import matplotlib.pyplot as plt
 
 from gatedmem import GatedMemory
+from nengo.networks import InputGatedMemory
 
 seed = np.random.randint(100)
 np.random.seed(seed)
 print seed
 
-dim = 32
-isi = 1.0
-neurons_per_dim = 50
+dim = 64
+isi = 2.0
+neurons_per_dim = 100
+subdimensions = 4
 cconv_neurons = 200
 sim_time = 60.0
 
 vocab = spa.Vocabulary(dim)
 vocab.add('POS', SemanticPointer(dim).unitary())
-print np.linalg.norm(vocab['POS'].v)
 
 def clock(t):
     if (t % isi) < isi/2.0:
@@ -34,15 +35,16 @@ def init_pos(t):
 with spa.Network('IG', vocabs=[vocab], seed=seed) as model:
     model.clock = nengo.Node(clock)
     model.inv_clock = nengo.Node(size_in=1)
-    nengo.Connection(model.clock, model.inv_clock, function=lambda x: abs(x-1))
+    nengo.Connection(model.clock, model.inv_clock, transform=-1)
+    nengo.Connection(nengo.Node(1), model.inv_clock)
 
-    model.pos = nengo.Node(output=vocab['POS'].v)
+    model.pos_ptr = nengo.Node(output=vocab['POS'].v)
     model.position = spa.State(vocab)
     model.inp = spa.Input()
     model.inp.position=init_pos
     
-    model.current = GatedMemory(neurons_per_dim, dim)
-    model.next = GatedMemory(neurons_per_dim, dim)
+    model.current = GatedMemory(dim, subdimensions=subdimensions, neurons_per_dim=neurons_per_dim)
+    model.next = GatedMemory(dim, subdimensions=subdimensions, neurons_per_dim=neurons_per_dim)
     model.cconv = nengo.networks.CircularConvolution(cconv_neurons, dimensions=dim)
 
     nengo.Connection(model.inv_clock, model.current.gate)
@@ -50,7 +52,7 @@ with spa.Network('IG', vocabs=[vocab], seed=seed) as model:
 
     nengo.Connection(model.position.output, model.current.input)
     nengo.Connection(model.current.output, model.cconv.input_a)
-    nengo.Connection(model.pos, model.cconv.input_b)
+    nengo.Connection(model.pos_ptr, model.cconv.input_b)
     nengo.Connection(model.cconv.output, model.next.input)
     nengo.Connection(model.next.output, model.current.input)
 
@@ -83,7 +85,6 @@ def plot_similarity(similarity, title='Similarity'):
     plt.xlabel('Time')
     plt.xlim(right=t[-1])
     plt.legend(vocab.keys(), loc='upper center')
-    plt.show()
 
 def plot_pointers(data, vocab, title='Similarity'):
     plot_similarity(spa.similarity(data, vocab), title)
@@ -93,9 +94,10 @@ def plot_vector_length(data, title='Length'):
     plot_similarity(data, title)
 
 def plot_index_sim(cur, next):
-    data = np.asarray([normalized_dot(cur[i], next[i]) for i in range(0, len(cur))])
+    data = np.asarray([np.dot(cur[i], next[i]) for i in range(0, len(cur))])
     plot_similarity(data)
 
 plot_index_sim(cur_data, next_data)
 plot_vector_length(cur_data, 'cl')
 plot_vector_length(next_data, 'nl')
+plt.show()
