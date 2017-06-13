@@ -1,11 +1,9 @@
 import nengo
 import numpy as np
-import nengo_spa as spa
-
-from nengo_spa.pointer import SemanticPointer
 import matplotlib.pyplot as plt
 
-from gatedmem import GatedMemory
+from nengo import spa
+from nengo_spa.pointer import AbsorbingElement
 from nengo.networks import InputGatedMemory
 
 seed = np.random.randint(100)
@@ -14,13 +12,13 @@ print seed
 
 dim = 64
 isi = 2.0
-neurons_per_dim = 100
-subdimensions = 4
+neurons_per_dim = 200
+subdimensions = 1
 cconv_neurons = 200
-sim_time = 60.0
+sim_time = 120.0
 
 vocab = spa.Vocabulary(dim)
-vocab.add('POS', SemanticPointer(dim).unitary())
+vocab.add('POS', vocab.create_pointer(unitary=True))
 
 def clock(t):
     if (t % isi) < isi/2.0:
@@ -32,19 +30,19 @@ def init_pos(t):
         return 'POS'
     return '0'
 
-with spa.Network('IG', vocabs=[vocab], seed=seed) as model:
+with spa.SPA('IG', vocabs=[vocab], seed=seed) as model:
     model.clock = nengo.Node(clock)
     model.inv_clock = nengo.Node(size_in=1)
     nengo.Connection(model.clock, model.inv_clock, transform=-1)
     nengo.Connection(nengo.Node(1), model.inv_clock)
 
     model.pos_ptr = nengo.Node(output=vocab['POS'].v)
-    model.position = spa.State(vocab)
+    model.position = spa.State(dim)
     model.inp = spa.Input()
     model.inp.position=init_pos
     
-    model.current = GatedMemory(dim, subdimensions=subdimensions, neurons_per_dim=neurons_per_dim)
-    model.next = GatedMemory(dim, subdimensions=subdimensions, neurons_per_dim=neurons_per_dim)
+    model.current = InputGatedMemory(n_neurons=neurons_per_dim, dimensions=dim)
+    model.next = InputGatedMemory(n_neurons=neurons_per_dim, dimensions=dim)
     model.cconv = nengo.networks.CircularConvolution(cconv_neurons, dimensions=dim)
 
     nengo.Connection(model.inv_clock, model.current.gate)
@@ -66,38 +64,30 @@ t = sim.trange()
 cur_data = sim.data[cur_probe]
 next_data = sim.data[next_probe]
 
-def normalized_dot(x, y):
-    xn = np.linalg.norm(x)
-    if xn != 0:
-        x = x / np.linalg.norm(x)
-    yn = np.linalg.norm(y)
-    if yn != 0:
-        y = y / np.linalg.norm(y)
-    return np.dot(x, y)
-
-def plot_similarity(similarity, title='Similarity'):
+def plot_data(data, title):
     ymin, ymax = -0.2, 1.5
     plt.figure()
     plt.ylim(ymin, ymax)
     plt.grid(True)
-    plt.plot(t, similarity)
+    plt.plot(t, data)
     plt.title(title)
     plt.xlabel('Time')
     plt.xlim(right=t[-1])
-    plt.legend(vocab.keys(), loc='upper center')
 
-def plot_pointers(data, vocab, title='Similarity'):
-    plot_similarity(spa.similarity(data, vocab), title)
-
-def plot_vector_length(data, title='Length'):
+def plot_vector_length(data, title):
     data = np.asarray([np.linalg.norm(x) for x in data])
-    plot_similarity(data, title)
+    plot_data(data, title)
 
 def plot_index_sim(cur, next):
     data = np.asarray([np.dot(cur[i], next[i]) for i in range(0, len(cur))])
-    plot_similarity(data)
+    plot_data(data, 'dot(CUR, NEXT)')
+
+def plot_absorbing_sim(cur):
+    abs_ptr = AbsorbingElement(dim)
+    data = np.asarray([np.dot(cur[i], abs_ptr.v) for i in range(0, len(cur))])
+    plot_data(data, 'dot(CUR, ABS)')
 
 plot_index_sim(cur_data, next_data)
-plot_vector_length(cur_data, 'cl')
-plot_vector_length(next_data, 'nl')
+plot_absorbing_sim(cur_data)
+plot_vector_length(cur_data, 'Current Pointer Length')
 plt.show()
