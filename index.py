@@ -41,13 +41,28 @@ def plot_data(data, title):
     plt.title(title)
     plt.xlabel('Time')
     plt.xlim(right=t[-1])
-    figpath = os.path.join(path, title.replace(' ', '_') + str(seed) + '.png')
+    figpath = os.path.join(path, title.replace(' ', '_') + '_' + str(seed) + '.png')
     plt.savefig(figpath)
 
 # Plot vector length
 def plot_vector_length(data, title):
     data = np.asarray([np.linalg.norm(x) for x in data])
     plot_data(data, title)
+
+# Normalized similarity
+def normdot(cur, next):
+    curn = np.linalg.norm(cur)
+    if curn != 0:
+        cur = cur/curn
+    nextn = np.linalg.norm(next)
+    if nextn != 0:
+        next = next/nextn
+    return np.dot(cur, next)
+
+# Plot normalized similarity between two probes
+def plot_index_sim_normalized(cur, next, title):
+    data = np.asarray([normdot(cur[i], next[i]) for i in range(0, len(cur))])
+    plot_data(data, title + ' norm_dot(CUR, NEXT)')
 
 # Plot unnormalized similarity between two probes
 def plot_index_sim(cur, next, title):
@@ -62,6 +77,7 @@ def plot_absorbing_sim(cur, title):
 
 # Generate all graphs
 def generate_graphs(cur_data, next_data, title_prefix):
+    plot_index_sim_normalized(cur_data, next_data, title_prefix)
     plot_index_sim(cur_data, next_data, title_prefix)
     plot_absorbing_sim(cur_data, title_prefix)
     plot_vector_length(cur_data, title_prefix + ' Current Pointer Length')
